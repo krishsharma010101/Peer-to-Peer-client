@@ -58,18 +58,4 @@ src/
   dashboard.html      - Frontend UI
 ```
 
-## Bugs Fixed from Original
 
-1. **Missing `src/` modules** — All source modules were missing and have been fully implemented
-2. **`torrentParser.open()` crash** — No error handling; now throws descriptive errors
-3. **Info hash** — Was hashing wrong data; now correctly hashes the `info` dict only
-4. **TCP stream fragmentation** — `onWholeMsg` now correctly handles partial/split TCP packets
-5. **Last piece length** — `pieceLen()` correctly handles the shorter final piece
-6. **Multi-file writes** — `writeToFiles()` correctly maps torrent offsets to multiple files
-7. **Peer ID** — `genId()` now generates once and caches (was creating a new ID per call)
-8. **Tracker errors** — Both UDP and HTTP trackers have proper timeouts and error handling
-9. **Size overflow** — Large torrent sizes no longer cause 32-bit integer overflow
-
-## Original Tutorial
-
-http://allenkim67.github.io/programming/2016/05/04/how-to-make-your-own-bittorrent-client.html
