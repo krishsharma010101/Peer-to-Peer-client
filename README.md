@@ -1,4 +1,4 @@
-# BitTorrent Client v2.0
+# Peer To Peer (BitTorent) Client 
 
 A fully functional BitTorrent client written in Node.js with a real-time web dashboard.
 
