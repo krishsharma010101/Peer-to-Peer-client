@@ -1,0 +1,75 @@
+# BitTorrent Client v2.0
+
+A fully functional BitTorrent client written in Node.js with a real-time web dashboard.
+
+## Features
+
+- ✅ Full BitTorrent wire protocol implementation
+- ✅ UDP & HTTP tracker support
+- ✅ Multi-file torrent support
+- ✅ Piece integrity verification
+- ✅ Real-time web dashboard at `http://localhost:3000`
+- ✅ Live peer connection tracking
+- ✅ Download speed history chart
+- ✅ Piece map visualization
+- ✅ ETA estimation
+
+## Installation
+
+```bash
+npm install
+```
+
+## Usage
+
+```bash
+node index.js <path-to-torrent-file>
+```
+
+Then open **http://localhost:3000** in your browser to watch the download in real time.
+
+## Dashboard Features
+
+| Panel | Description |
+|-------|-------------|
+| Speed card | Live download speed (B/s → MB/s) |
+| Peers card | Connected vs discovered peers |
+| ETA card | Estimated time to completion |
+| Downloaded | Total bytes received |
+| Progress bar | Smooth animated fill |
+| Piece map | Visual grid of all 400 displayed pieces |
+| Speed chart | 60-second rolling sparkline |
+| Peer list | Live status of all discovered peers |
+| Activity log | Timestamped event stream |
+
+## Architecture
+
+```
+index.js              - Entry point, starts dashboard + download
+src/
+  torrent-parser.js   - .torrent file parsing, info hash, piece math
+  tracker.js          - UDP/HTTP tracker announce & peer discovery
+  download.js         - Peer connection, piece request pipeline, file write
+  message.js          - BitTorrent wire protocol encode/decode
+  pieces.js           - Piece/block tracking state machine
+  queue.js            - Per-peer block request queue
+  utils.js            - Peer ID generation
+  dashboard.js        - HTTP server + SSE event bridge
+  dashboard.html      - Frontend UI
+```
+
+## Bugs Fixed from Original
+
+1. **Missing `src/` modules** — All source modules were missing and have been fully implemented
+2. **`torrentParser.open()` crash** — No error handling; now throws descriptive errors
+3. **Info hash** — Was hashing wrong data; now correctly hashes the `info` dict only
+4. **TCP stream fragmentation** — `onWholeMsg` now correctly handles partial/split TCP packets
+5. **Last piece length** — `pieceLen()` correctly handles the shorter final piece
+6. **Multi-file writes** — `writeToFiles()` correctly maps torrent offsets to multiple files
+7. **Peer ID** — `genId()` now generates once and caches (was creating a new ID per call)
+8. **Tracker errors** — Both UDP and HTTP trackers have proper timeouts and error handling
+9. **Size overflow** — Large torrent sizes no longer cause 32-bit integer overflow
+
+## Original Tutorial
+
+http://allenkim67.github.io/programming/2016/05/04/how-to-make-your-own-bittorrent-client.html

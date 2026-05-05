@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BitTorrent Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@300;400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #080c10;
+    --panel: #0d1117;
+    --border: #1a2332;
+    --accent: #00d4ff;
+    --accent2: #ff6b35;
+    --green: #39ff8a;
+    --yellow: #ffd93d;
+    --red: #ff4757;
+    --muted: #3a4a5c;
+    --text: #c9d9e8;
+    --dim: #5a7a8a;
+    --glow: 0 0 20px rgba(0,212,255,0.3);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Barlow', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Scanline effect */
+  body::before {
+    content: '';
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.05) 2px,
+      rgba(0,0,0,0.05) 4px
+    );
+    pointer-events: none;
+    z-index: 999;
+  }
+
+  /* Grid noise background */
+  body::after {
+    content: '';
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-image:
+      linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .wrapper {
+    position: relative;
+    z-index: 1;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 24px;
+  }
+
+  /* Header */
+  header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    margin-bottom: 32px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .logo-icon {
+    width: 44px;
+    height: 44px;
+    position: relative;
+  }
+
+  .logo-icon svg { width: 100%; height: 100%; }
+
+  h1 {
+    font-family: 'Barlow', sans-serif;
+    font-weight: 800;
+    font-size: 28px;
+    letter-spacing: -0.5px;
+    color: #fff;
+  }
+
+  h1 span {
+    color: var(--accent);
+    font-weight: 300;
+  }
+
+  .status-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--muted);
+    transition: background 0.3s;
+  }
+  .status-dot.idle { background: var(--muted); }
+  .status-dot.connecting { background: var(--yellow); animation: blink 1s infinite; }
+  .status-dot.downloading { background: var(--green); animation: pulse-green 2s infinite; }
+  .status-dot.done { background: var(--accent); }
+  .status-dot.error { background: var(--red); }
+
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+  @keyframes pulse-green {
+    0%,100%{box-shadow: 0 0 0 0 rgba(57,255,138,0.5)}
+    50%{box-shadow: 0 0 0 6px rgba(57,255,138,0)}
+  }
+
+  /* Top stats row */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+
+  .stat-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    padding: 20px 24px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.3s;
+  }
+
+  .stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 3px;
+    height: 100%;
+    background: var(--accent);
+    opacity: 0.6;
+  }
+
+  .stat-card:nth-child(2)::before { background: var(--green); }
+  .stat-card:nth-child(3)::before { background: var(--yellow); }
+  .stat-card:nth-child(4)::before { background: var(--accent2); }
+
+  .stat-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--dim);
+    margin-bottom: 8px;
+  }
+
+  .stat-value {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 32px;
+    font-weight: 400;
+    color: #fff;
+    line-height: 1;
+    transition: all 0.3s;
+  }
+
+  .stat-value.accent { color: var(--accent); }
+  .stat-value.green { color: var(--green); }
+  .stat-value.yellow { color: var(--yellow); }
+  .stat-value.orange { color: var(--accent2); }
+
+  .stat-sub {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: var(--dim);
+    margin-top: 4px;
+  }
+
+  /* Main grid */
+  .main-grid {
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+
+  /* Panel base */
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    padding: 20px;
+  }
+
+  .panel-title {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--dim);
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .panel-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* Progress section */
+  .torrent-name {
+    font-size: 18px;
+    font-weight: 600;
+    color: #fff;
+    margin-bottom: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .torrent-meta {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    color: var(--dim);
+    margin-bottom: 20px;
+  }
+
+  /* Progress bar */
+  .progress-outer {
+    height: 6px;
+    background: var(--border);
+    position: relative;
+    margin-bottom: 8px;
+    overflow: hidden;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--green));
+    transition: width 0.5s ease;
+    position: relative;
+  }
+
+  .progress-fill::after {
+    content: '';
+    position: absolute;
+    right: 0; top: 0; bottom: 0;
+    width: 40px;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4));
+    animation: shimmer 1.5s infinite;
+  }
+
+  @keyframes shimmer {
+    0%{opacity:0} 50%{opacity:1} 100%{opacity:0}
+  }
+
+  .progress-labels {
+    display: flex;
+    justify-content: space-between;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: var(--dim);
+    margin-bottom: 24px;
+  }
+
+  .progress-pct {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+  }
+
+  /* Piece grid */
+  .piece-grid-wrapper {
+    margin-top: 8px;
+  }
+
+  #piece-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px;
+  }
+
+  .piece-cell {
+    width: 10px;
+    height: 10px;
+    background: var(--border);
+    transition: background 0.3s, transform 0.1s;
+    border-radius: 1px;
+  }
+
+  .piece-cell.done {
+    background: var(--green);
+    box-shadow: 0 0 4px rgba(57,255,138,0.5);
+  }
+
+  .piece-cell.active {
+    background: var(--accent);
+    animation: flash 0.5s ease;
+  }
+
+  @keyframes flash {
+    0%{background: #fff}
+    100%{background: var(--accent)}
+  }
+
+  /* Peers panel */
+  .peers-list {
+    max-height: 320px;
+    overflow-y: auto;
+  }
+
+  .peers-list::-webkit-scrollbar { width: 4px; }
+  .peers-list::-webkit-scrollbar-track { background: transparent; }
+  .peers-list::-webkit-scrollbar-thumb { background: var(--border); }
+
+  .peer-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(26,35,50,0.5);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    transition: all 0.3s;
+  }
+
+  .peer-item:last-child { border-bottom: none; }
+
+  .peer-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    background: var(--muted);
+    transition: background 0.3s;
+  }
+  .peer-dot.connected { background: var(--green); box-shadow: 0 0 6px rgba(57,255,138,0.6); }
+
+  .peer-ip { color: var(--text); flex: 1; }
+  .peer-port { color: var(--dim); }
+
+  .peer-status {
+    font-size: 9px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--muted);
+    transition: color 0.3s;
+  }
+
+  .peer-status.connected { color: var(--green); }
+
+  /* Bottom row */
+  .bottom-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  /* Sparkline / speed chart */
+  #speed-chart {
+    width: 100%;
+    height: 80px;
+  }
+
+  /* Log panel */
+  #log-list {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    max-height: 120px;
+    overflow-y: auto;
+    color: var(--dim);
+  }
+
+  #log-list::-webkit-scrollbar { width: 4px; }
+  #log-list::-webkit-scrollbar-thumb { background: var(--border); }
+
+  .log-entry {
+    padding: 3px 0;
+    display: flex;
+    gap: 10px;
+    border-bottom: 1px solid rgba(26,35,50,0.3);
+    animation: fadeIn 0.3s ease;
+  }
+
+  @keyframes fadeIn { from{opacity:0; transform:translateX(-4px)} to{opacity:1; transform:none} }
+
+  .log-time { color: var(--muted); flex-shrink: 0; }
+
+  .log-entry.info .log-msg { color: var(--text); }
+  .log-entry.success .log-msg { color: var(--green); }
+  .log-entry.warn .log-msg { color: var(--yellow); }
+  .log-entry.error .log-msg { color: var(--red); }
+
+  /* Done overlay */
+  .done-banner {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(8,12,16,0.9);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .done-banner.show { display: flex; }
+
+  .done-icon {
+    font-size: 64px;
+    animation: pop 0.5s cubic-bezier(0.34,1.56,0.64,1);
+  }
+
+  @keyframes pop { from{transform:scale(0)} to{transform:scale(1)} }
+
+  .done-title {
+    font-family: 'Barlow', sans-serif;
+    font-weight: 800;
+    font-size: 40px;
+    color: var(--green);
+    text-shadow: 0 0 30px rgba(57,255,138,0.5);
+  }
+
+  .done-sub {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 14px;
+    color: var(--dim);
+    letter-spacing: 2px;
+  }
+
+  .done-close {
+    margin-top: 16px;
+    background: transparent;
+    border: 1px solid var(--green);
+    color: var(--green);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 2px;
+    padding: 10px 24px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: all 0.2s;
+  }
+
+  .done-close:hover { background: var(--green); color: var(--bg); }
+
+  /* Error panel */
+  .errors-panel {
+    display: none;
+    margin-top: 16px;
+    padding: 12px 16px;
+    background: rgba(255,71,87,0.08);
+    border: 1px solid rgba(255,71,87,0.3);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    color: var(--red);
+  }
+
+  .errors-panel.show { display: block; }
+
+  /* No connection notice */
+  .no-conn {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    padding: 12px 16px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: var(--yellow);
+    letter-spacing: 1px;
+    z-index: 100;
+    display: none;
+    animation: slideUp 0.3s ease;
+  }
+
+  @keyframes slideUp { from{transform:translateY(10px);opacity:0} to{transform:none;opacity:1} }
+
+  @media (max-width: 900px) {
+    .stats-row { grid-template-columns: repeat(2, 1fr); }
+    .main-grid { grid-template-columns: 1fr; }
+    .bottom-row { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrapper">
+  <!-- Header -->
+  <header>
+    <div class="logo">
+      <div class="logo-icon">
+        <svg viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="1" y="1" width="42" height="42" rx="4" stroke="#1a2332" stroke-width="2"/>
+          <path d="M22 8L36 16V28L22 36L8 28V16L22 8Z" stroke="#00d4ff" stroke-width="1.5" fill="rgba(0,212,255,0.05)"/>
+          <circle cx="22" cy="22" r="5" fill="#00d4ff" opacity="0.8"/>
+          <line x1="22" y1="12" x2="22" y2="17" stroke="#00d4ff" stroke-width="1.5"/>
+          <line x1="22" y1="27" x2="22" y2="32" stroke="#00d4ff" stroke-width="1.5"/>
+          <line x1="12" y1="17" x2="17" y2="20" stroke="#00d4ff" stroke-width="1.5"/>
+          <line x1="27" y1="24" x2="32" y2="27" stroke="#00d4ff" stroke-width="1.5"/>
+          <line x1="32" y1="17" x2="27" y2="20" stroke="#00d4ff" stroke-width="1.5"/>
+          <line x1="12" y1="27" x2="17" y2="24" stroke="#00d4ff" stroke-width="1.5"/>
+        </svg>
+      </div>
+      <h1>Torrent<span>Watch</span></h1>
+    </div>
+    <div class="status-badge">
+      <div class="status-dot idle" id="status-dot"></div>
+      <span id="status-text">IDLE</span>
+    </div>
+  </header>
+
+  <!-- Stat cards -->
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="stat-label">Download Speed</div>
+      <div class="stat-value accent" id="dl-speed">0.0</div>
+      <div class="stat-sub" id="dl-speed-unit">KB/s</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Peers Connected</div>
+      <div class="stat-value green" id="peer-count">0</div>
+      <div class="stat-sub" id="peer-total">/ 0 discovered</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">ETA</div>
+      <div class="stat-value yellow" id="eta">--:--</div>
+      <div class="stat-sub">estimated time</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Downloaded</div>
+      <div class="stat-value orange" id="bytes-down">0</div>
+      <div class="stat-sub" id="bytes-unit">MB</div>
+    </div>
+  </div>
+
+  <!-- Main grid -->
+  <div class="main-grid">
+    <!-- Left: Progress + Piece map -->
+    <div class="panel">
+      <div class="panel-title">Download Progress</div>
+      <div class="torrent-name" id="torrent-name">Waiting for torrent...</div>
+      <div class="torrent-meta" id="torrent-meta">--</div>
+      <div class="progress-outer">
+        <div class="progress-fill" id="progress-bar" style="width:0%"></div>
+      </div>
+      <div class="progress-labels">
+        <span id="pieces-label">0 / 0 pieces</span>
+        <span class="progress-pct" id="progress-pct">0.00%</span>
+      </div>
+
+      <div class="piece-grid-wrapper">
+        <div class="panel-title" style="margin-top:4px">Piece Map</div>
+        <div id="piece-grid"></div>
+      </div>
+    </div>
+
+    <!-- Right: Peers -->
+    <div class="panel">
+      <div class="panel-title">Peers</div>
+      <div class="peers-list" id="peers-list">
+        <div style="font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--dim);padding:20px 0;text-align:center">
+          Connecting to tracker...
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom row -->
+  <div class="bottom-row">
+    <div class="panel">
+      <div class="panel-title">Speed History</div>
+      <canvas id="speed-chart"></canvas>
+    </div>
+    <div class="panel">
+      <div class="panel-title">Activity Log</div>
+      <div id="log-list"></div>
+    </div>
+  </div>
+
+  <!-- Errors -->
+  <div class="errors-panel" id="errors-panel"></div>
+</div>
+
+<!-- Done overlay -->
+<div class="done-banner" id="done-banner">
+  <div class="done-icon">✓</div>
+  <div class="done-title">Download Complete</div>
+  <div class="done-sub" id="done-meta">Files saved successfully</div>
+  <button class="done-close" onclick="document.getElementById('done-banner').classList.remove('show')">Dismiss</button>
+</div>
+
+<div class="no-conn" id="no-conn">⚠ Reconnecting to server...</div>
+
+<script>
+// ─── State ───────────────────────────────────────────────────────────────────
+let state = {
+  totalPieces: 0,
+  piecesReceived: 0,
+  progress: 0,
+  connectedPeers: 0,
+  peers: [],
+  downloadSpeed: 0,
+  bytesDownloaded: 0,
+  torrentName: '',
+  status: 'idle',
+  eta: null,
+  errors: [],
+};
+
+const speedHistory = new Array(60).fill(0);
+let pieceGrid = [];
+let lastPiecesReceived = 0;
+
+// ─── Speed Chart ─────────────────────────────────────────────────────────────
+const canvas = document.getElementById('speed-chart');
+const ctx = canvas.getContext('2d');
+
+function resizeCanvas() {
+  canvas.width = canvas.parentElement.clientWidth - 40;
+  canvas.height = 80;
+  drawSpeedChart();
+}
+
+function drawSpeedChart() {
+  const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+
+  const max = Math.max(...speedHistory, 1);
+  const step = w / (speedHistory.length - 1);
+
+  // Grid lines
+  ctx.strokeStyle = 'rgba(26,35,50,0.8)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = h - (i / 4) * h;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(w, y);
+    ctx.stroke();
+  }
+
+  // Gradient fill
+  const grad = ctx.createLinearGradient(0, 0, 0, h);
+  grad.addColorStop(0, 'rgba(0,212,255,0.4)');
+  grad.addColorStop(1, 'rgba(0,212,255,0)');
+
+  ctx.beginPath();
+  ctx.moveTo(0, h);
+  speedHistory.forEach((val, i) => {
+    const x = i * step;
+    const y = h - (val / max) * (h * 0.85) - 4;
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.lineTo(w, h);
+  ctx.closePath();
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // Line
+  ctx.beginPath();
+  ctx.strokeStyle = '#00d4ff';
+  ctx.lineWidth = 2;
+  speedHistory.forEach((val, i) => {
+    const x = i * step;
+    const y = h - (val / max) * (h * 0.85) - 4;
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+}
+
+window.addEventListener('resize', resizeCanvas);
+setTimeout(resizeCanvas, 100);
+
+// ─── Piece Map ────────────────────────────────────────────────────────────────
+function initPieceGrid(total) {
+  const container = document.getElementById('piece-grid');
+  container.innerHTML = '';
+  pieceGrid = [];
+  const displayCount = Math.min(total, 400); // cap display
+  for (let i = 0; i < displayCount; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'piece-cell';
+    container.appendChild(cell);
+    pieceGrid.push({ el: cell, done: false });
+  }
+}
+
+function updatePieceGrid(received, total) {
+  if (pieceGrid.length === 0 && total > 0) initPieceGrid(total);
+  const ratio = Math.min(received / Math.max(total, 1), 1);
+  const doneCells = Math.floor(ratio * pieceGrid.length);
+  for (let i = 0; i < pieceGrid.length; i++) {
+    const shouldBeDone = i < doneCells;
+    if (shouldBeDone && !pieceGrid[i].done) {
+      pieceGrid[i].done = true;
+      pieceGrid[i].el.className = 'piece-cell active';
+      setTimeout(() => {
+        if (pieceGrid[i]) pieceGrid[i].el.className = 'piece-cell done';
+      }, 500);
+    }
+  }
+}
+
+// ─── Peers List ───────────────────────────────────────────────────────────────
+function renderPeers(peers) {
+  const list = document.getElementById('peers-list');
+  if (!peers || peers.length === 0) {
+    list.innerHTML = '<div style="font-family:\'Share Tech Mono\',monospace;font-size:12px;color:var(--dim);padding:20px 0;text-align:center">No peers found</div>';
+    return;
+  }
+
+  const display = peers.slice(0, 40);
+  list.innerHTML = display.map(p => `
+    <div class="peer-item">
+      <div class="peer-dot ${p.connected ? 'connected' : ''}"></div>
+      <span class="peer-ip">${p.ip}</span>
+      <span class="peer-port">:${p.port}</span>
+      <span class="peer-status ${p.connected ? 'connected' : ''}">${p.connected ? 'active' : 'idle'}</span>
+    </div>
+  `).join('');
+}
+
+// ─── Log ──────────────────────────────────────────────────────────────────────
+function addLog(msg, type = 'info') {
+  const list = document.getElementById('log-list');
+  const time = new Date().toTimeString().slice(0, 8);
+  const entry = document.createElement('div');
+  entry.className = `log-entry ${type}`;
+  entry.innerHTML = `<span class="log-time">${time}</span><span class="log-msg">${msg}</span>`;
+  list.prepend(entry);
+  while (list.children.length > 50) list.removeChild(list.lastChild);
+}
+
+// ─── Format helpers ───────────────────────────────────────────────────────────
+function formatSpeed(bytesPerSec) {
+  if (bytesPerSec > 1024 * 1024) return [(bytesPerSec / (1024 * 1024)).toFixed(1), 'MB/s'];
+  if (bytesPerSec > 1024) return [(bytesPerSec / 1024).toFixed(1), 'KB/s'];
+  return [bytesPerSec.toFixed(0), 'B/s'];
+}
+
+function formatBytes(bytes) {
+  if (bytes > 1024 * 1024 * 1024) return [(bytes / (1024**3)).toFixed(2), 'GB'];
+  if (bytes > 1024 * 1024) return [(bytes / (1024**2)).toFixed(1), 'MB'];
+  if (bytes > 1024) return [(bytes / 1024).toFixed(1), 'KB'];
+  return [bytes.toFixed(0), 'B'];
+}
+
+function formatEta(seconds) {
+  if (!seconds || seconds <= 0) return '--:--';
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m}m ${String(s).padStart(2,'0')}s`;
+  return `${s}s`;
+}
+
+// ─── Apply state to DOM ───────────────────────────────────────────────────────
+function applyState(s) {
+  // Status dot
+  const dot = document.getElementById('status-dot');
+  const statusText = document.getElementById('status-text');
+  dot.className = `status-dot ${s.status}`;
+  statusText.textContent = s.status.toUpperCase();
+
+  // Torrent name
+  if (s.torrentName) {
+    document.getElementById('torrent-name').textContent = s.torrentName;
+    document.getElementById('torrent-meta').textContent =
+      `${s.totalPieces} pieces · ${formatBytes(s.bytesDownloaded + 1)[0]} ${formatBytes(s.bytesDownloaded + 1)[1]} downloaded`;
+  }
+
+  // Progress bar
+  const pct = Math.min(s.progress || 0, 100);
+  document.getElementById('progress-bar').style.width = `${pct}%`;
+  document.getElementById('progress-pct').textContent = `${pct.toFixed(2)}%`;
+  document.getElementById('pieces-label').textContent = `${s.piecesReceived || 0} / ${s.totalPieces || 0} pieces`;
+
+  // Piece map
+  updatePieceGrid(s.piecesReceived || 0, s.totalPieces || 0);
+
+  // Speed
+  const [spd, unit] = formatSpeed(s.downloadSpeed || 0);
+  document.getElementById('dl-speed').textContent = spd;
+  document.getElementById('dl-speed-unit').textContent = unit;
+
+  // Speed history
+  speedHistory.push(s.downloadSpeed || 0);
+  speedHistory.shift();
+  drawSpeedChart();
+
+  // Peers
+  document.getElementById('peer-count').textContent = s.connectedPeers || 0;
+  document.getElementById('peer-total').textContent = `/ ${(s.peers || []).length} discovered`;
+  renderPeers(s.peers || []);
+
+  // ETA
+  document.getElementById('eta').textContent = formatEta(s.eta);
+
+  // Bytes
+  const [byt, bytUnit] = formatBytes(s.bytesDownloaded || 0);
+  document.getElementById('bytes-down').textContent = byt;
+  document.getElementById('bytes-unit').textContent = bytUnit;
+
+  // Errors
+  if (s.errors && s.errors.length > 0) {
+    const panel = document.getElementById('errors-panel');
+    panel.className = 'errors-panel show';
+    panel.innerHTML = s.errors.map(e => `⚠ ${e}`).join('<br>');
+  }
+
+  // Log peer changes
+  if (s.connectedPeers > (state.connectedPeers || 0)) {
+    addLog(`${s.connectedPeers} peers connected`, 'success');
+  }
+
+  // Done
+  if (s.status === 'done') {
+    document.getElementById('done-meta').textContent = `${s.torrentName} saved successfully`;
+    document.getElementById('done-banner').classList.add('show');
+    addLog('Download complete!', 'success');
+  }
+
+  state = { ...s };
+}
+
+// ─── SSE Connection ───────────────────────────────────────────────────────────
+let evtSource;
+let reconnectTimer;
+
+function connect() {
+  evtSource = new EventSource('/events');
+  document.getElementById('no-conn').style.display = 'none';
+
+  evtSource.onmessage = (e) => {
+    try {
+      const data = JSON.parse(e.data);
+      if (data.type === 'stats') applyState(data.payload);
+      if (data.type === 'progress') {
+        state.progress = data.payload.progress;
+        state.piecesReceived = data.payload.piecesReceived;
+        state.totalPieces = data.payload.totalPieces;
+        state.bytesDownloaded = data.payload.bytesDownloaded;
+        document.getElementById('progress-bar').style.width = `${state.progress.toFixed(2)}%`;
+        document.getElementById('progress-pct').textContent = `${state.progress.toFixed(2)}%`;
+        document.getElementById('pieces-label').textContent = `${state.piecesReceived} / ${state.totalPieces} pieces`;
+        updatePieceGrid(state.piecesReceived, state.totalPieces);
+        const [byt, bytUnit] = formatBytes(state.bytesDownloaded);
+        document.getElementById('bytes-down').textContent = byt;
+        document.getElementById('bytes-unit').textContent = bytUnit;
+      }
+      if (data.type === 'peers') {
+        addLog(`Tracker returned ${data.payload.length} peers`, 'info');
+      }
+      if (data.type === 'done') {
+        addLog('✓ Download complete!', 'success');
+      }
+    } catch (err) {}
+  };
+
+  evtSource.onerror = () => {
+    document.getElementById('no-conn').style.display = 'block';
+    evtSource.close();
+    reconnectTimer = setTimeout(connect, 3000);
+  };
+}
+
+// Initial load of stats
+fetch('/stats')
+  .then(r => r.json())
+  .then(s => applyState(s))
+  .catch(() => {});
+
+addLog('Dashboard loaded', 'info');
+connect();
+</script>
+</body>
+</html>

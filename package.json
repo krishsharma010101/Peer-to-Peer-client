@@ -1,0 +1,14 @@
+{
+  "name": "allen-torrent",
+  "version": "2.0.0",
+  "description": "A BitTorrent client with real-time web dashboard",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Allen Kim",
+  "license": "ISC",
+  "dependencies": {
+    "bencode": "^0.9.0"
+  }
+}
